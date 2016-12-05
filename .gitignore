@@ -1,0 +1,15 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OSX index
+*.DS*
+
+# IPython Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+

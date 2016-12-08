@@ -1,14 +1,14 @@
 import sys
 import os
 import argparse
-import fixationFilter_utils as ff 
+import filtering_utils as filt
 from os.path import join
 
 
 def processData(inputDataPath):
 	"""
 	Given the path to a subject's raw data file (e.g. AVB_XXX_eyeData.txt), run the 
-	data through the various stages of cleanup: filtering the data and defining fixations
+	data through the various stages of cleanup: filtering the data,  defining fixations, summarizing fixations, summarizing trial
 	"""
 
 	### Define paths
@@ -22,23 +22,26 @@ def processData(inputDataPath):
 	# Read raw data as dataframe
 	raw_df = pd.read_table(inputDataPath)
 
-	#####################################
-	### Step 1: Filter Raw Data
-	#####################################
 	# loop through all unique trials
 	for i, trial in enumerate(np.unique(raw_df['trialNum'])):
 
 		# grab trial data
-		trial_raw = raw_df[(raw_df.trialNum == trial)]
+		trial_df = raw_df[(raw_df.trialNum == trial)]
+
+		#####################################
+		### Step 1: Filter Raw Data
+		#####################################
 
 		# Filter the raw data for this trial
-		trial_filtered = ff.filterRaw(trial_raw)
+		trial_filtered = filt.filterRaw(trial_df)
 
-		# add results to the master lists for each
+		# add filtered_trial to master 
 		if i == 0:
 			allTrials_filtered = trial_filtered.copy()
 		else:
 			allTrials_filtered = pd.concat([allTrials_filtered, trial_filtered], ignore_index=True)
+
+	
 
 	# write filtered data file to disk
 	filtered_fname = join(OUTPUT_dir, (SUBJ + '_filtered.csv'))

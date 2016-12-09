@@ -216,7 +216,7 @@ def filterRaw(trial_df):
 	trial_df.loc[trial_df.validity > 0, ['gaze-X','gaze-Y','eyeDistance']] = np.nan
 
 	# maximum window size (in ms) to interpolate over
-	max_interp_window = 50 # conservative estimate of blink length  
+	max_interp_window = 100 # conservative estimate of blink length  
 
 	# convert interp_window from ms to # of samples
 	interp_limit = np.floor(max_interp_window/(1/sampleHz*1000))

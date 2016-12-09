@@ -9,7 +9,7 @@ import cv2
 
 # EYE DATA/TASK PARAMETERS
 sampleHz = 60;					# sample rate of the eye-tracking data
-image_dur = 5000;				# duration (ms) of each image presentation
+stimDuration = 5000;			# duration (ms) of each stim presentation
 screenSize_mm = (340, 270)  	# screen size (mm)
 screenSize_px = (1280, 1024) 	# screen size (px)
 px2mm = screenSize_mm[0]/screenSize_px[0]	# calculate pixel to mm scaling factor
@@ -18,7 +18,6 @@ px2mm = screenSize_mm[0]/screenSize_px[0]	# calculate pixel to mm scaling factor
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### --------- Filtering Classes --------------------------
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 class FixationFilter_IDT():
 	"""
 	Dispersion Threshold Filter (based on Salvucci et al. (2000)) for definging
@@ -91,7 +90,7 @@ class FixationFilter_IDT():
 		
 		# add the fixation number label to original array
 		fixNumber[fixNumber == 0] = np.nan  # set fixNumber=0 to nan
-		df['fixNumber'] = fixNumber  
+		df.loc[:,'fixNumber'] = fixNumber  
 		return df
 	
 	def dispersion(self, df, winStart, winEnd):
@@ -114,12 +113,75 @@ class FixationFilter_IDT():
 		return disp
 
 
+class AOIs:
+	"""
+	Class to work with specified AOI image file, store each AOIs coordinates
+	Input:  -2D ndarray containing unique AOI labels by number
+			-scaleFactor: scale factor between AOI image and displayed stim size during the task
+	"""
+	def __init__(self, AOIimage, scaleFactor):
+
+		# calculate scale factor between AOI image and displayed image
+		self.scaleFactor = scaleFactor
+		self.AOI = AOIimage
+		self.isInverted = False
+
+		# flip image if necessary
+		if self.isInverted:
+			self.AOI = np.flipud(self.AOI) 		# flip the image upside down
+
+		# extract the unique, nonzero, values in this AOI
+		self.AOI_codes = np.unique(self.AOI[self.AOI > 0])
+
+		#### CREATE DICT TO STORE EACH AOIS COORDS
+		self.AOIs = {}				# dicitionary to store all of the AOIs and coordinates
+		for val in self.AOI_codes:
+			self.this_AOI = self.AOI == val 					# make a unique image for this value only
+			self.Xcoords = np.where(self.this_AOI==True)[1]		# pull out x-coordinates for this AOI (NOTE: remember, (row,col) convention means (y,x))
+			self.Ycoords = np.where(self.this_AOI==True)[0]		# pull out y-coordinates for this AOI
+			self.coords = [(self.Xcoords[x], self.Ycoords[x]) for x in range(len(self.Xcoords))]	# convert to list of tuples
+
+			# map values to names
+			if val == 64:
+				self.AOI_name = 'rightEye'
+			elif val == 128:
+				self.AOI_name = 'leftEye'
+			elif val == 191:
+				self.AOI_name = 'nose'
+			elif val == 255:
+				self.AOI_name = 'mouth'
+			else:
+				print 'AOI image has value of: ' + str(val) + '. Not found in key.'
+
+			# store names and coordinates in dictionary (NOTE: coordinates are stored as (x,y) pairs...so: (column, row))
+			self.AOIs[self.AOI_name] = self.coords
+
+
+	def isAOI(self, coordinates):
+		"check if the specified coordinates fall into one of the AOIs"
+
+		# scale coordinates
+		self.x = np.round(coordinates[0] * self.scaleFactor) #.astype('uint8')
+		self.y = np.round(coordinates[1] * self.scaleFactor) #.astype('uint8')
+		self.this_coord = (self.x, self.y)
+
+		# loop through the AOIs in the dictionary until you find which (if any) it belongs to
+		self.found_AOI = False
+		for name, coords in self.AOIs.iteritems():
+			if self.this_coord in coords:
+				self.AOI_label = name
+				self.found_AOI = True
+				break
+
+		if not self.found_AOI:
+			self.AOI_label = 'none'
+
+		return self.AOI_label
 
 
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### --------- Filtering Functions ------------------------
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 def filterRaw(trial_df):
 	"""
 	input: dataframe of raw trial eye-tracking data
@@ -184,14 +246,26 @@ def defineFixations(trial_df):
 	return trial_df
 
 
-def summarizeFixations(trial_df):
+def summarizeFixations(trial_df, AOI_path):
 	"""
-	input: dataframe of trial eye-tracking data with column indicating fixation
+	input: -dataframe of trial eye-tracking data with column indicating fixation
+ 		   -path to AOI file for this image
 
 	output: dataframe with each row reprsenting a single fixation during that trial,
 	and columns representing the different dependent variables calculated on each fixation
 	"""
-	
+	# get stim dimensions for this trial's stimulus
+	imW = trial_df.loc[trial_df.stimType == 'image','rect-X2'].iloc[0] - trial_df.loc[trial_df.stimType == 'image','rect-X1'].iloc[0]
+	imH = trial_df.loc[trial_df.stimType == 'image','rect-Y2'].iloc[0] - trial_df.loc[trial_df.stimType == 'image','rect-Y1'].iloc[0]
+
+	if AOI_path is not None:
+		stimAOI = cv2.imread(AOI_path)	 # read AOI file as ndarray
+		stimAOI = stimAOI[:,:,0]         # grab first color channel only (other 2 are redundant)
+		AOI_scaleFactor = stimAOI.shape[1]/imW   # scale factor for mapping gaze coords to AOI dimensions (note: cv2.imread returns shape as [h,w])
+		
+		# instantiate AOI object
+		trialAOIs = AOIs(stimAOI, AOI_scaleFactor)
+
 	# grab list of unique fixation numbers in this trial
 	fixLabels = trial_df.fixNumber.unique()
 
@@ -240,8 +314,11 @@ def summarizeFixations(trial_df):
 		prevFix_Y = fixPosY
 		
 		# figure out the appropriate AOI label (if any)
-		fixCoords = (fixPosX, fixPosY)
-		AOI_label = trialAOIs.isAOI(fixCoords)
+		if AOI_path is not None:
+			fixCoords = (fixPosX, fixPosY)
+			AOI_label = trialAOIs.isAOI(fixCoords)
+		else:
+			AOI_label = 'none'
 		
 		# figure out which quadrant of the image the fixation falls in
 		if fixPosX <= imW/2:
@@ -254,7 +331,9 @@ def summarizeFixations(trial_df):
 			vertHalf = 'bot'
 			
 		# write output to new dataframe
-		fixSummary = pd.DataFrame({'fixNumber': fixNum,
+		fixSummary = pd.DataFrame({'trialNum': trial_df.trialNum.iloc[0],
+								 'imageName': trial_df.imageName.iloc[0],
+								 'fixNumber': fixNum,
 								 'duration':fixDuration,
 								 'fixPosX': fixPosX,
 								 'fixPosY': fixPosY,
@@ -271,9 +350,51 @@ def summarizeFixations(trial_df):
 		else:
 			allFix_df = pd.concat([allFix_df, fixSummary], ignore_index=True)
 
-	# ADD BASIC TRIAL INFO (NUMBER, IMAGE NAME, ETC)
-
+	# return df with all fixations summarized for this trial
 	return allFix_df
+
+
+def summarizeTrial(fix_df):
+	"""
+	Summarize all fixations in a single trial.
+	input: dataframe containing the summarized fixations for this trial
+
+	output:  series representing various fixations summaries within that trial 
+	(e.g. proportion of time spent looking at the left eye)
+	"""
+	totalFixDuration = fix_df.duration.sum()  # total time spent on fixations within the trial
+
+	# sum fixation duration by AOI type
+	summedDurationByFix = fix_df.groupby('AOI').duration.sum()
+
+	# calculate a proportion of trial time spent in each AOI
+	calcProportion = lambda x: x/stimDuration
+	trialSummary = summedDurationByFix.apply(calcProportion)
+
+	# add proportions for fixation time spent in image halves (top vs bot; left vs right)
+	for hemi in ['vertHemi', 'horizHemi']:
+		summedDurationByHemi = fix_df.groupby(hemi).duration.sum()
+		hemiProps = summedDurationByHemi.apply(calcProportion)
+		trialSummary = pd.concat([trialSummary, hemiProps])
+	
+	# make sure all possible AOIs are represented
+	for aoi in ['leftEye', 'rightEye', 'nose', 'mouth', 'none', 'left', 'right', 'top', 'bot']:
+		if aoi not in trialSummary.index:
+			trialSummary.loc[aoi] = 0.0
+
+	# add entry for proportion of time that WAS NOT a fixation
+	trialSummary.loc['nonFixation'] = (stimDuration-totalFixDuration)/stimDuration
+
+	# add entry for fixation proportion combined across eyes
+	trialSummary.loc['eyesCombined'] = trialSummary.loc['leftEye'] + trialSummary.loc['rightEye']
+
+	# add info about trial number and image name to the output series
+	trialSummary.loc['trialNum'] = int(fix_df.trialNum.iloc[0])
+	trialSummary.loc['imageName'] = fix_df.imageName.iloc[0]
+
+	# return series with summarized trial info
+	return trialSummary
+
 
 
 

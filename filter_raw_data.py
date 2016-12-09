@@ -6,6 +6,8 @@ from os.path import join
 import pandas as pd
 import numpy as np
 
+pd.options.mode.chained_assignment = None  # default='warn'
+
 
 def processData(inputDataPath):
 	"""
@@ -48,7 +50,6 @@ def processData(inputDataPath):
 		
 		# check if there's an AOI for this trial
 		stimName = trial_filtered.imageName.iloc[0]
-		print stimName
 		AOI_name = stimName.split('/')[1][:-4] + '_AOIs.png'
 		AOI_path = join(STIM_dir, 'AOIs/finished_AOIs', AOI_name)
 		if not os.path.exists(AOI_path):

@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 import cv2
 
+pd.options.mode.chained_assignment = None  # default='warn'
+
 
 # EYE DATA/TASK PARAMETERS
 sampleHz = 60;					# sample rate of the eye-tracking data
@@ -266,89 +268,109 @@ def summarizeFixations(trial_df, AOI_path):
 		# instantiate AOI object
 		trialAOIs = AOIs(stimAOI, AOI_scaleFactor)
 
-	# grab list of unique fixation numbers in this trial
-	fixLabels = trial_df.fixNumber.unique()
+	# check if there are any valid fixations during this trial
+	if np.nansum(trial_df.fixNumber) > 0:
+		
+		# grab list of unique fixation numbers in this trial
+		fixLabels = trial_df.fixNumber.unique()
 
-	# loop through each unique label
-	for i,fixNum in enumerate(fixLabels[~np.isnan(fixLabels)]):
-		
-		# pull out the rows for this fixation
-		fix_df = trial_df.loc[trial_df.fixNumber == fixNum, :]
-		
-		# calculate fixation duration
-		fixDuration = fix_df.timeStamp.iloc[-1] - fix_df.timeStamp.iloc[0]
-		
-		# calculate centroid location for fixation
-		fixPosX, fixPosY = np.ceil(np.mean(fix_df.loc[:, 'gaze-X':'gaze-Y']))
-		
-		# calculate the mean eye-distance during this fixation (needed to convert subsequent values from px to vis angle)
-		fixEyeDist = np.mean(fix_df.eyeDistance)
+		# loop through each unique label
+		for i,fixNum in enumerate(fixLabels[~np.isnan(fixLabels)]):
 			
-		# calculate distance from previous fixation
-		if i == 0:
-			# if its the first fixation, use the fixation cross location
-			prevFix_X = fix_df['fix-X'].iloc[0]
-			prevFix_Y = fix_df['fix-Y'].iloc[0]
-		distX = abs(fixPosX-prevFix_X)
-		distY = abs(fixPosY-prevFix_Y)
-		distPrev = np.sqrt(distX**2 + distY**2)   # do some hypoteneuse calculating
-		distPrev = distPrev * px2mm              # convert distance to mm
-		distPrev = np.rad2deg(2 * np.arctan((distPrev/2)/fixEyeDist))  # convert to visual angle
-		
-		# calculate distance from center of image
-		distX = abs(fixPosX-(imW/2))
-		distY = abs(fixPosY-(imH/2))
-		distCenter = np.sqrt(distX**2 + distY**2)
-		distCenter = distCenter * px2mm
-		distCenter = np.rad2deg(2 * np.arctan((distCenter/2)/fixEyeDist))
-		
-		# calculate direction of movement from previous fixation
-		dx = fixPosX - prevFix_X
-		dy = fixPosY - prevFix_Y
-		radsFromPrev = np.arctan2(-dy, dx)   # invert dy to account for screen coordinates going from top to bottom
-		radsFromPrev %= 2*np.pi              # convert to radians relative to the +x axis
-		dirFromPrev = np.rad2deg(radsFromPrev) # express direction degrees
-		
-		# update the previous fixation values
-		prevFix_X = fixPosX
-		prevFix_Y = fixPosY
-		
-		# figure out the appropriate AOI label (if any)
-		if AOI_path is not None:
-			fixCoords = (fixPosX, fixPosY)
-			AOI_label = trialAOIs.isAOI(fixCoords)
-		else:
-			AOI_label = 'none'
-		
-		# figure out which quadrant of the image the fixation falls in
-		if fixPosX <= imW/2:
-			horizHalf = 'left'
-		else:
-			horizHalf = 'right'
-		if fixPosY <= imH/2:
-			vertHalf = 'top'
-		else:
-			vertHalf = 'bot'
+			# pull out the rows for this fixation
+			fix_df = trial_df.loc[trial_df.fixNumber == fixNum, :]
 			
-		# write output to new dataframe
-		fixSummary = pd.DataFrame({'trialNum': trial_df.trialNum.iloc[0],
+			# calculate fixation duration
+			fixDuration = fix_df.timeStamp.iloc[-1] - fix_df.timeStamp.iloc[0]
+			
+			# calculate centroid location for fixation
+			fixPosX, fixPosY = np.ceil(np.mean(fix_df.loc[:, 'gaze-X':'gaze-Y']))
+			
+			# calculate the mean eye-distance during this fixation (needed to convert subsequent values from px to vis angle)
+			fixEyeDist = np.mean(fix_df.eyeDistance)
+				
+			# calculate distance from previous fixation
+			if i == 0:
+				# if its the first fixation, use the fixation cross location
+				prevFix_X = fix_df['fix-X'].iloc[0]
+				prevFix_Y = fix_df['fix-Y'].iloc[0]
+			distX = abs(fixPosX-prevFix_X)
+			distY = abs(fixPosY-prevFix_Y)
+			distPrev = np.sqrt(distX**2 + distY**2)   # do some hypoteneuse calculating
+			distPrev = distPrev * px2mm              # convert distance to mm
+			distPrev = np.rad2deg(2 * np.arctan((distPrev/2)/fixEyeDist))  # convert to visual angle
+			
+			# calculate distance from center of image
+			distX = abs(fixPosX-(imW/2))
+			distY = abs(fixPosY-(imH/2))
+			distCenter = np.sqrt(distX**2 + distY**2)
+			distCenter = distCenter * px2mm
+			distCenter = np.rad2deg(2 * np.arctan((distCenter/2)/fixEyeDist))
+			
+			# calculate direction of movement from previous fixation
+			dx = fixPosX - prevFix_X
+			dy = fixPosY - prevFix_Y
+			radsFromPrev = np.arctan2(-dy, dx)   # invert dy to account for screen coordinates going from top to bottom
+			radsFromPrev %= 2*np.pi              # convert to radians relative to the +x axis
+			dirFromPrev = np.rad2deg(radsFromPrev) # express direction degrees
+			
+			# update the previous fixation values
+			prevFix_X = fixPosX
+			prevFix_Y = fixPosY
+			
+			# figure out the appropriate AOI label (if any)
+			if AOI_path is not None:
+				fixCoords = (fixPosX, fixPosY)
+				AOI_label = trialAOIs.isAOI(fixCoords)
+			else:
+				AOI_label = 'none'
+			
+			# figure out which quadrant of the image the fixation falls in
+			if fixPosX <= imW/2:
+				horizHalf = 'left'
+			else:
+				horizHalf = 'right'
+			if fixPosY <= imH/2:
+				vertHalf = 'top'
+			else:
+				vertHalf = 'bot'
+				
+			# write output to new dataframe
+			fixSummary = pd.DataFrame({'trialNum': trial_df.trialNum.iloc[0],
+									 'imageName': trial_df.imageName.iloc[0],
+									 'fixNumber': fixNum,
+									 'duration':fixDuration,
+									 'fixPosX': fixPosX,
+									 'fixPosY': fixPosY,
+									 'crossX': fix_df['fix-X'].iloc[0],
+									 'crossY': fix_df['fix-Y'].iloc[0],
+									 'distFromPrev': distPrev,
+									 'dirFromPrev':dirFromPrev,
+									 'distFromCenter':distCenter,
+									 'AOI': AOI_label,
+									 'vertHemi': vertHalf,
+									 'horizHemi': horizHalf}, index=[0])
+			if i == 0:
+				allFix_df = fixSummary
+			else:
+				allFix_df = pd.concat([allFix_df, fixSummary], ignore_index=True)
+		
+	# if no valid fixations in trial, return dataframe of nans
+	else:
+		allFix_df = pd.DataFrame({'trialNum': trial_df.trialNum.iloc[0],
 								 'imageName': trial_df.imageName.iloc[0],
-								 'fixNumber': fixNum,
-								 'duration':fixDuration,
-								 'fixPosX': fixPosX,
-								 'fixPosY': fixPosY,
-								 'crossX': fix_df['fix-X'].iloc[0],
-								 'crossY': fix_df['fix-Y'].iloc[0],
-								 'distFromPrev': distPrev,
-								 'dirFromPrev':dirFromPrev,
-								 'distFromCenter':distCenter,
-								 'AOI': AOI_label,
-								 'vertHemi': vertHalf,
-								 'horizHemi': horizHalf}, index=[0])
-		if i == 0:
-			allFix_df = fixSummary
-		else:
-			allFix_df = pd.concat([allFix_df, fixSummary], ignore_index=True)
+								 'fixNumber': np.nan,
+								 'duration':np.nan,
+								 'fixPosX': np.nan,
+								 'fixPosY': np.nan,
+								 'crossX': trial_df['fix-X'].iloc[0],
+								 'crossY': trial_df['fix-Y'].iloc[0],
+								 'distFromPrev': np.nan,
+								 'dirFromPrev':np.nan,
+								 'distFromCenter':np.nan,
+								 'AOI': np.nan,
+								 'vertHemi': np.nan,
+								 'horizHemi': np.nan}, index=[0])
 
 	# return df with all fixations summarized for this trial
 	return allFix_df

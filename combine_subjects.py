@@ -14,9 +14,10 @@ if not os.path.isdir(outputDir):
 	os.makedirs(outputDir)
 
 subjNums = np.arange(55,80)
-
+				
 fileTypes = {'fixations': '_fixations.tsv', 
-			'summaries':'_trialSummary.tsv'}
+			'summaries':'_trialSummary.tsv',
+			'filtered': '_filtered.tsv', }
 
 for i,subj in enumerate(subjNums):
 	subjName = 'AVB_' + str(subj).zfill(4)
@@ -41,11 +42,15 @@ for i,subj in enumerate(subjNums):
 					allSubj_fixations = df.copy()
 				elif thisFileType == 'summaries':
 					allSubj_summaries = df.copy()
+				elif thisFileType == 'filtered':
+					allSubj_filtered = df.copy()
 			else:
 				if thisFileType == 'fixations':
 					allSubj_fixations = pd.concat([allSubj_fixations, df], ignore_index=True)
 				elif thisFileType == 'summaries':
 					allSubj_summaries = pd.concat([allSubj_summaries, df], ignore_index=True)
+				elif thisFileType == 'filtered':
+					allSubj_filtered = pd.concat([allSubj_filtered, df], ignore_index=True)
 
 		else:
 			print 'No ' + (subjName + fileTypes[thisFileType]) + ' file...'
@@ -58,6 +63,11 @@ allSubj_fixations.to_csv(join(outputDir, 'group_fixations.tsv'),
 					index=False)
 
 allSubj_summaries.to_csv(join(outputDir, 'group_summaries.tsv'),
+					sep='\t',
+					header=True,
+					index=False)
+
+allSubj_filtered.to_csv(join(outputDir, 'group_filtered.tsv'),
 					sep='\t',
 					header=True,
 					index=False)

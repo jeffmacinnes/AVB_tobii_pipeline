@@ -20,7 +20,8 @@ def duplicateAOIs(AOIdir):
 	sourceAOIs = glob.glob(searchPattern)
 
 	for thisAOI in sourceAOIs:
-		AOIdir, AOIname = thisAOI.split('/')
+		print(thisAOI)
+		AOIname = thisAOI.split('/')[-1]
 
 		for prefix in ['hp_', 'lp_']:
 			shutil.copyfile(join(AOIdir, AOIname), join(AOIdir, (prefix + AOIname)))
@@ -29,5 +30,6 @@ def duplicateAOIs(AOIdir):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('AOIdir', help="path to dir containing finalized AOIs")
+	args = parser.parse_args()
 
-	duplicateAOIs(args.stimList)
+	duplicateAOIs(args.AOIdir)

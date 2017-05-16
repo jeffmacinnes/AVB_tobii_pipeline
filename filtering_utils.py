@@ -144,6 +144,7 @@ class AOIs:
 			self.coords = [(self.Xcoords[x], self.Ycoords[x]) for x in range(len(self.Xcoords))]	# convert to list of tuples
 
 			# map values to names
+			print(val)
 			if val == 64:
 				self.AOI_name = 'rightEye'
 			elif val == 128:
@@ -153,7 +154,7 @@ class AOIs:
 			elif val == 255:
 				self.AOI_name = 'mouth'
 			else:
-				print 'AOI image has value of: ' + str(val) + '. Not found in key.'
+				print('AOI image has value of: ' + str(val) + '. Not found in key.')
 
 			# store names and coordinates in dictionary (NOTE: coordinates are stored as (x,y) pairs...so: (column, row))
 			self.AOIs[self.AOI_name] = self.coords

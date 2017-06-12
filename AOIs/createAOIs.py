@@ -35,7 +35,7 @@ def processAOIs(stimList):
 
 	# loop through all images
 	for img in imgs:
-		print 'image: %s' % img
+		print('image: %s' % img)
 
 		# get the stim filename for this image, read in image data
 		stim_fname = stimNames.imgName[stimNames.imageIdx==img].values[0]
